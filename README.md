@@ -698,7 +698,7 @@ For complete license text, see LICENSE file in the repository.
 
 **"La seguridad no es un producto, es un proceso continuo"** — Bruce Schneier
 
-Última actualización: 2026-01-15 | Versión: 1.0.0 | Estatus: ✅ Production Ready
+Última actualización: 2026-04-14 | Versión: 1.0.0 | Estatus: ✅ Production Ready
 
 </div>
 
