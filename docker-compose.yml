@@ -1,0 +1,28 @@
+services:
+  secure-app:
+    build: .
+    image: distroless-secure-app:latest
+    container_name: distroless-hardened-app
+    restart: unless-stopped
+    
+    security_opt:
+      - no-new-privileges:true
+    
+    cap_drop:
+      - ALL
+    
+    cap_add:
+      - NET_BIND_SERVICE
+    
+    read_only: true
+    tmpfs:
+      - /tmp:noexec,nosuid,size=64m
+    
+    ports:
+      - "127.0.0.1:8080:8080"
+    
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'

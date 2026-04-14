@@ -1,0 +1,18 @@
+{
+  "defaultAction": "SCMP_ACT_ERRNO",
+  "architectures": ["SCMP_ARCH_X86_64", "SCMP_ARCH_AARCH64"],
+  "syscalls": [
+    {
+      "names": ["read", "write", "close", "fstat", "lseek", "mmap", "mprotect", "munmap", "brk", "exit_group", "clock_gettime", "getpid", "gettid", "sigaltstack", "rt_sigreturn"],
+      "action": "SCMP_ACT_ALLOW"
+    },
+    {
+      "names": ["accept4", "bind", "listen", "getsockname", "setsockopt", "socket", "connect"],
+      "action": "SCMP_ACT_ALLOW"
+    },
+    {
+      "names": ["epoll_create1", "epoll_ctl", "epoll_wait", "eventfd2"],
+      "action": "SCMP_ACT_ALLOW"
+    }
+  ]
+}
