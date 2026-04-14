@@ -430,7 +430,7 @@ docker inspect distroless-hardened-app | jq '.[0].HostConfig'
 # Salida:
 # ==========================================
 # 📊 DISTROLESS CONTAINER MONITOR
-# Time: 2024-01-15 14:23:45
+# Time: 2026-01-15 14:23:45
 # ==========================================
 # 
 # 🔍 CONTAINER STATUS:
@@ -656,7 +656,7 @@ Para reportar issues:
 ```
 MIT License
 
-Copyright (c) 2024 Docker Distroless Security Lab
+Copyright (c) 2026 Docker Distroless Security Lab
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -698,7 +698,7 @@ For complete license text, see LICENSE file in the repository.
 
 **"La seguridad no es un producto, es un proceso continuo"** — Bruce Schneier
 
-Última actualización: 2024-01-15 | Versión: 1.0.0 | Estatus: ✅ Production Ready
+Última actualización: 2026-01-15 | Versión: 1.0.0 | Estatus: ✅ Production Ready
 
 </div>
 
