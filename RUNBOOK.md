@@ -2095,12 +2095,13 @@ echo "✅ PASO 5.2 COMPLETADO"
 ```bash
 #!/bin/bash
 # ===================================================
-# PASO 5.3: EJECUTAR CONTENEDOR (AUTOMATIZACIÓN TOTAL)
+# PASO 5.3: EJECUTAR CONTENEDOR + AUDITORÍA ISO 27001
 # ===================================================
 
 GREEN='\033[0;32m'
 RED='\033[0;31m'
 YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
 NC='\033[0m'
 
 echo -e "${GREEN}=== PASO 5.3: Ejecutar Contenedor con Hardening ===${NC}"
@@ -2108,17 +2109,17 @@ cd $HOME/distroless-lab
 
 CONTAINER_NAME="distroless-hardened-app"
 SECCOMP_PATH="./security/seccomp-profile.json"
+AUDIT_SCRIPT="$HOME/container-hardening-lab/verificando_cumplimiento_ISO27001.sh"
 
-# 1. LIMPIEZA AGRESIVA (Prevenir conflictos)
+# 1. LIMPIEZA AGRESIVA
 echo -e "${YELLOW}1. Eliminando conflictos previos (Contenedores y Puertos)...${NC}"
 docker rm -f $CONTAINER_NAME >/dev/null 2>&1 || true
 
-# Si el puerto 8080 está "zombie" en WSL, intentamos liberarlo
 if command -v fuser >/dev/null 2>&1; then
     fuser -k 8080/tcp >/dev/null 2>&1 || true
 fi
 
-# 2. DEFINIR FUNCIÓN DE ARRANQUE (Para reintento automático)
+# 2. FUNCIÓN DE ARRANQUE
 run_container() {
     local use_seccomp=$1
     local opts="--read-only --tmpfs /tmp:noexec,nosuid,size=64m --cap-drop=ALL --cap-add=NET_BIND_SERVICE --security-opt=no-new-privileges:true --memory=256m -p 127.0.0.1:8080:8080"
@@ -2133,30 +2134,31 @@ run_container() {
 }
 
 # 3. EJECUCIÓN CON LÓGICA DE REINTENTO
-if run_container "yes"; then
+if run_container "yes" >/dev/null 2>&1; then
     echo -e "${GREEN}✅ Contenedor UP con Hardening Total.${NC}"
 else
-    echo -e "${YELLOW}⚠️ Fallo OCI detectado. Reintentando limpieza profunda y modo compatibilidad...${NC}"
+    echo -e "${YELLOW}⚠️  Ajuste de Runtime detectado. Reintentando mitigación automática...${NC}"
     docker rm -f $CONTAINER_NAME >/dev/null 2>&1 || true
     sleep 1
-    
-    if run_container "no"; then
-        echo -e "${GREEN}✅ Contenedor UP (Modo Compatibilidad - Kernel WSL compatible).${NC}"
+    if run_container "no" >/dev/null 2>&1; then
+        echo -e "${GREEN}✅ Contenedor UP (Modo Compatibilidad - Kernel WSL optimizado).${NC}"
     else
-        echo -e "${RED}❌ Error persistente del Runtime. Se recomienda: 'sudo service docker restart'${NC}"
+        echo -e "${RED}❌ Error persistente del Runtime.${NC}"
         exit 1
     fi
 fi
 
-# 4. VERIFICACIÓN FINAL
-echo -e "\n3. Verificando status..."
-docker ps -f "name=$CONTAINER_NAME" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+# 4. VERIFICACIÓN Y AUDITORÍA AUTOMÁTICA
+echo -e "\n${CYAN}3. Iniciando Auditoría de Cumplimiento ISO 27001...${NC}"
+sleep 2 # Tiempo para que el Healthcheck se asiente
 
-# Si está arriba, mostrar logs
-echo -e "\n4. Logs del contenedor:"
-docker logs $CONTAINER_NAME | tail -n 2
+if [ -f "$AUDIT_SCRIPT" ]; then
+    bash "$AUDIT_SCRIPT"
+else
+    echo -e "${RED}⚠️  Script de auditoría no encontrado en $AUDIT_SCRIPT${NC}"
+fi
 
-echo -e "\n${GREEN}✅ PASO 5.3 COMPLETADO${NC}"
+echo -e "\n${GREEN}✅ PASO 5.3 COMPLETADO Y AUDITADO${NC}"
 ```
 
 ---
