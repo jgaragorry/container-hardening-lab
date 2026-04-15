@@ -1036,125 +1036,68 @@ echo -e "\n${GREEN}✅ PASO 3.2 COMPLETADO CORRECTAMENTE${NC}"
 ```bash
 #!/bin/bash
 # ============================================
-# PASO 3.3: DOCUMENTAR DIRECTIVAS
+# PASO 3.3: DOCUMENTAR DIRECTIVAS (FIXED)
 # ============================================
 
-echo "=== PASO 3.3: Crear Documentación de Seguridad ==="
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+NC='\033[0m'
 
-cd $HOME/distroless-lab
+echo -e "${GREEN}=== PASO 3.3: Crear Documentación de Seguridad ===${NC}"
 
-cat > security/dockerfile-explanation.md << 'EOF'
+# Definir y asegurar rutas
+BASE_DIR="$HOME/distroless-lab"
+SEC_DIR="$BASE_DIR/security"
+
+# Idempotencia: Asegurar que el directorio existe
+mkdir -p "$SEC_DIR"
+
+cat > "$SEC_DIR/dockerfile-explanation.md" << 'EOF'
 # 🔒 Explicación de Directivas de Seguridad en Dockerfile
 
 ## STAGE 1: Builder (golang:1.22-alpine3.19)
 
 ### CGO_ENABLED=0
 **¿Qué hace?** Deshabilita CGO (C bindings en Go)
-**¿Por qué?** 
-- Elimina dependencias en libc
-- Build completamente estático
-- Sin vulnerabilidades de librerías C dinámicas
-- Reduce surface de ataque
-
-### GOOS=linux, GOARCH=amd64
-**¿Qué hace?** Especifica sistema operativo y arquitectura
-**¿Por qué?**
-- Compilación cruzada reproducible
-- Binario específico para x86_64 Linux
-- Sin incertidumbre arquitectónica
-
-### GO111MODULE=on
-**¿Qué hace?** Habilita Go modules
-**¿Por qué?**
-- Gestión de dependencias reproducible
-- Lockfile en go.sum
-- Auditabilidad de versiones
+**¿Por qué?** - Elimina dependencias en libc. Build completamente estático.
+- Sin vulnerabilidades de librerías C dinámicas.
 
 ### -ldflags="-s -w"
-**¿Qué hace?** Elimina símbolos y debug info
-**¿Por qué?**
-- Reduce tamaño de binario (ataque surface)
-- Dificulta reverse engineering
-- Menos metadatos expuestos
-
-### -extldflags '-static'
-**¿Qué hace?** Link estático sin librerías dinámicas
-**¿Por qué?**
-- Binario completamente independiente
-- Sin dependencias libc
-- No requiere glibc en runtime
-- Seguridad reproducible
+**¿Qué hace?** Elimina símbolos y debug info.
+**¿Por qué?** Reduce tamaño y dificulta la ingeniería inversa.
 
 ### -trimpath
-**¿Qué hace?** Remueve rutas absolutas del binario
-**¿Por qué?**
-- Binario reproducible
-- Sin info de rutas de compilación
-- Menos info sobre ambiente de build
+**¿Qué hace?** Remueve rutas absolutas del binario de la máquina donde se compiló.
 
 ---
 
 ## STAGE 2: Runtime (distroless/static-debian12:nonroot)
 
 ### Base Image: distroless/static
-**¿Qué hace?** Image Google Distroless sin shell
-**¿Por qué?**
-- ❌ Sin /bin/sh, /bin/bash
-- ❌ Sin apt, apk (package managers)
-- ❌ Sin utilidades (curl, wget, ls, cat)
-- ❌ Sin libc innecesarias
-- ✅ Solo lo esencial: libc, ca-certificates
-- 🎯 Reduce surface de ataque ~95%
+**¿Qué hace?** Imagen sin shell ni utilidades (ls, cd, apt, etc).
+**¿Por qué?** Reduce la superficie de ataque drásticamente. Si un atacante entra, no tiene herramientas.
 
 ### Tag: :nonroot
-**¿Qué hace?** Pre-configura usuario no-root (UID:65532)
-**¿Por qué?**
-- Usuario especial en el rango no-privilegiado
-- GID:65532 para grupo
-- No puede ganar privilegios root
-
-### COPY --chown=nonroot:nonroot
-**¿Qué hace?** Copia archivo y asigna ownership
-**¿Por qué?**
-- Asegura ownership correcto
-- Previene archivos con owner root
-- Consistent security posture
-
-### EXPOSE 8080
-**¿Qué hace?** Documenta puerto, no lo "abre"
-**¿Por qué?**
-- Puerto >1024 (no-privilegiado)
-- No requiere root para bind
-- Si fuera <1024, necesitaría capabilities
-- Documenta intención de la aplicación
+**¿Qué hace?** Corre como UID 65532.
+**¿Por qué?** Principio de menor privilegio. No puede escalar a root en el host.
 
 ### HEALTHCHECK
-**¿Qué hace?** Verifica health cada 30s
-**¿Por qué?**
-- Docker/K8s detectan automaticamente si está degradado
-- Reinicia contenedor si no responde
-- Sondeos desde DENTRO (seguro, no expone)
-- Proactivo: previene cascadas de fallos
-
----
-
-## Resumen de Seguridad
-
-| Medida | Layer | Beneficio |
-|--------|-------|----------|
-| Build estático | Compiler | 0 dependencias dinámicas |
-| Distroless | Base image | 95% menos binarios |
-| No-root user | Runtime | Aislamiento de privilegios |
-| Read-only FS | Runtime | Inmutabilidad |
-| Capabilities | Runtime | Permisos mínimos |
-| Seccomp | Runtime | Syscalls filtradas |
-| Health checks | Operational | Detección automática |
+**¿Qué hace?** Define cómo Docker sabe si la app vive.
+**¿Por qué?** Permite auto-recuperación sin intervención manual.
 
 EOF
 
-echo "✅ Documentación creada: security/dockerfile-explanation.md"
-echo ""
-echo "✅ PASO 3.3 COMPLETADO"
+# Verificación real
+if [ -f "$SEC_DIR/dockerfile-explanation.md" ]; then
+    echo -e "${GREEN}✅ Documentación creada en: $SEC_DIR/dockerfile-explanation.md${NC}"
+    echo -e "\n--- VISTA PREVIA ---"
+    head -n 5 "$SEC_DIR/dockerfile-explanation.md"
+else
+    echo -e "${RED}❌ Error al crear el archivo de documentación.${NC}"
+    exit 1
+fi
+
+echo -e "\n${GREEN}✅ PASO 3.3 COMPLETADO${NC}"
 ```
 
 ---
