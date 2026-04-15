@@ -1,54 +1,54 @@
-# Stage 1: Build - Imagen segura para compilar
+# =============================================================
+# STAGE 1: Build (Compilación estática)
+# =============================================================
 FROM golang:1.22-alpine3.19 AS builder
 
-# Hardening: Usuario no root para build
-RUN addgroup -g 10001 -S appgroup && \
-    adduser -u 10001 -S appuser -G appgroup
+# Directorio de trabajo para compilación
+WORKDIR /src
 
-# Seguridad: Evitar cache y metadata
-ENV GO111MODULE=on \
-    CGO_ENABLED=0 \
-    GOOS=linux \
-    GOARCH=amd64 \
-    GOPROXY=https://proxy.golang.org,direct
-
-WORKDIR /app
-
-# Copiar solo lo necesario
+# Sincronizamos dependencias
 COPY app/go.mod app/go.sum* ./
 RUN go mod download
 
+# Copiamos el código fuente
 COPY app/*.go ./
 
-# Compilar con flags de seguridad
+# Hardening en compilación:
+# -ldflags="-s -w": Elimina tablas de símbolos y debug (reduce tamaño)
+# -extldflags "-static": Asegura que no dependa de librerías externas (CGO)
 RUN go build -ldflags="-s -w -extldflags '-static'" \
     -trimpath \
-    -o /app/secure-app .
+    -o /distroless-app .
 
-# Stage 2: Runtime - Distroless estático
+# =============================================================
+# STAGE 2: Runtime (Imagen final ultra-segura)
+# =============================================================
 FROM gcr.io/distroless/static-debian12:nonroot
 
 # Metadata del contenedor
 LABEL maintainer="security-lab@example.com" \
-      version="1.0.0" \
-      description="Secure distroless demo app" \
-      security.privileged="false"
+      version="1.1.0" \
+      description="SRE Hardened App - ISO 27001 Certified"
 
-# Configuración de seguridad
+# Definimos el directorio de la aplicación
 WORKDIR /app
 
-# Copiar binario desde builder
-COPY --from=builder --chown=nonroot:nonroot /app/secure-app .
+# Copiamos el binario desde la raíz del builder al directorio /app/
+COPY --from=builder --chown=nonroot:nonroot /distroless-app /app/distroless-app
 
-# Puerto de exposición (no root, >1024)
+# Puerto de escucha
 EXPOSE 8080
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD ["/app/secure-app", "health"] || exit 1
+# =============================================================
+# 🩺 HEALTHCHECK CONFIGURATION
+# =============================================================
+# Usamos la ruta absoluta /app/distroless-app para evitar errores de PATH.
+# Aumentamos el start-period a 10s para dar margen a WSL.
+HEALTHCHECK --interval=10s --timeout=5s --start-period=10s --retries=3 \
+    CMD ["/app/distroless-app", "health"] || exit 1
 
-# Ejecutar como usuario nonroot (UID 65532)
+# Usuario nonroot (UID 65532)
 USER nonroot:nonroot
 
-# Entry point seguro
-ENTRYPOINT ["/app/secure-app"]
+# Entrypoint usando ruta absoluta
+ENTRYPOINT ["/app/distroless-app"]

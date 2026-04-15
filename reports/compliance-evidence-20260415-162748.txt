@@ -1,0 +1,43 @@
+============================================================
+       EVIDENCIA DE CUMPLIMIENTO - SEGURIDAD SRE
+       NORMA: ISO 27001:2022 (CONTENEDORES)
+============================================================
+Fecha de Generación : Wed Apr 15 16:27:48 -04 2026
+Arquitecto Responsable: Juan Garagorry (SRE Senior)
+Hostname            : MSI
+------------------------------------------------------------
+
+[1] IDENTIFICACIÓN DEL ACTIVO
+------------------------------------------------------------
+Nombre Contenedor : distroless-hardened-app
+ID Corto          : be6d7c8bb911
+Imagen Base       : distroless-secure-app:latest
+Estado Runtime    : running
+
+[2] CONTROLES TÉCNICOS IMPLEMENTADOS
+------------------------------------------------------------
+A.8.8 (Vulnerabilidades Técnicas): 
+    - EVIDENCIA: Imagen Distroless (Sin Gestor de Paquetes/Shell)
+    - TAMAÑO IMAGEN: 15.9MB
+
+A.8.26 (Privilegios Mínimos):
+    - EVIDENCIA: Capabilities Dropped: [ALL]
+    - USUARIO CONFIGURADO: 65532
+
+A.8.27 (Arquitectura Segura):
+    - EVIDENCIA: Read-only Filesystem: true
+    - EVIDENCIA: No-New-Privileges: [no-new-privileges:true]
+
+[3] LÍMITES DE RECURSOS (ANTI-DOS)
+------------------------------------------------------------
+Memoria Límite : 256 MB
+CPU Límite     : 0.5 cores
+
+[4] VERIFICACIÓN DE DISPONIBILIDAD (HEALTH)
+------------------------------------------------------------
+Endpoint /       : HTTP 200
+Endpoint /health : HTTP 200
+
+============================================================
+             FIN DEL REPORTE DE CERTIFICACIÓN
+============================================================

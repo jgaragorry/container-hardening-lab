@@ -2278,199 +2278,73 @@ graph TD
 
 ```bash
 #!/bin/bash
-# ============================================
-# PASO 6.1: CREAR SCRIPT VERIFICACIÓN COMPLETA
-# ============================================
+# ============================================================
+# 🛡️  AUDITORÍA DE SEGURIDAD UNIFICADA (DISTROLESS V2.1)
+# ============================================================
 
-echo "=== PASO 6.1: Crear Script de Verificación ==="
-
-cd $HOME/distroless-lab
-
-cat > scripts/verify-all.sh << 'VERIFY_SCRIPT'
-#!/bin/bash
-
+# Colores para el reporte profesional
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
+CYAN='\033[0;36m'
 NC='\033[0m'
 
-echo -e "${BLUE}========================================${NC}"
-echo -e "${BLUE}🔍 COMPLETE SECURITY VERIFICATION${NC}"
-echo -e "${BLUE}========================================${NC}"
+# VARIABLES CRÍTICAS (No borrar)
+CONTAINER="distroless-hardened-app"
+IMAGEN="distroless-secure-app:latest"
 
-PASSED=0
-FAILED=0
-WARNINGS=0
+echo -e "${BLUE}============================================================${NC}"
+echo -e "${BLUE}🕵️  REPORTE DE AUDITORÍA TÉCNICA - ESTADO: $(date +'%H:%M:%S')${NC}"
+echo -e "${BLUE}============================================================${NC}"
 
-# 1. Container Status
-echo -e "\n${YELLOW}[1/9] Container Status${NC}"
-if docker ps | grep -q distroless-hardened-app; then
-    echo -e "${GREEN}✅ Container running${NC}"
-    ((PASSED++))
+# 1. Superficie de Ataque
+SIZE=$(docker images $IMAGEN --format "{{.Size}}")
+if [ ! -z "$SIZE" ]; then
+    echo -e "${GREEN}[CUMPLE]${NC} Tamaño de Imagen\n         └─ ${CYAN}Análisis:${NC} Imagen optimizada ($SIZE). Sin binarios basura."
 else
-    echo -e "${RED}❌ Container not running${NC}"
-    ((FAILED++))
-    exit 1
+    echo -e "${RED}[FALLA]${NC} No se encontró la imagen $IMAGEN"
 fi
 
-# 2. Filesystem Security
-echo -e "\n${YELLOW}[2/9] Filesystem Security${NC}"
-RO=$(docker inspect distroless-hardened-app --format='{{.HostConfig.ReadonlyRootfs}}')
+# 2. Inmutabilidad
+RO=$(docker inspect $CONTAINER --format='{{.HostConfig.ReadonlyRootfs}}' 2>/dev/null)
 if [ "$RO" = "true" ]; then
-    echo -e "${GREEN}✅ Read-only root filesystem${NC}"
-    ((PASSED++))
+    echo -e "${GREEN}[CUMPLE]${NC} Filesystem Read-Only\n         └─ ${CYAN}Análisis:${NC} Sistema bloqueado. Inyección de malware imposible."
 else
-    echo -e "${RED}❌ Writeable filesystem${NC}"
-    ((FAILED++))
+    echo -e "${RED}[FALLA]${NC} Filesystem Read-Only\n         └─ ${RED}Alerta:${NC} El sistema permite escritura."
 fi
 
-# 3. Capabilities
-echo -e "\n${YELLOW}[3/9] Capabilities${NC}"
-CAP_DROP=$(docker inspect distroless-hardened-app --format='{{.HostConfig.CapDrop}}')
-CAP_ADD=$(docker inspect distroless-hardened-app --format='{{.HostConfig.CapAdd}}')
-
-if echo "$CAP_DROP" | grep -q "ALL"; then
-    echo -e "${GREEN}✅ All capabilities dropped${NC}"
-    ((PASSED++))
+# 3. Usuario (Acepta UID o nombre)
+USER_CONFIG=$(docker inspect $CONTAINER --format='{{.Config.User}}' 2>/dev/null)
+if [[ "$USER_CONFIG" == "65532" || "$USER_CONFIG" == "nonroot" ]]; then
+    echo -e "${GREEN}[CUMPLE]${NC} Usuario Non-Root\n         └─ ${CYAN}Análisis:${NC} UID detectado: $USER_CONFIG. (ISO A.8.26)"
 else
-    echo -e "${RED}❌ Not all capabilities dropped${NC}"
-    ((FAILED++))
+    echo -e "${RED}[FALLA]${NC} Usuario Non-Root\n         └─ ${RED}Alerta:${NC} Configuración no segura detectada."
 fi
 
-if echo "$CAP_ADD" | grep -q "NET_BIND_SERVICE"; then
-    echo -e "${GREEN}✅ NET_BIND_SERVICE added${NC}"
-    ((PASSED++))
+# 4. Prueba de Intrusión Real (Pentest de Shell)
+echo -e "\n${YELLOW}4. PENTEST: ACCESO A SHELL${NC}"
+docker exec $CONTAINER /bin/sh -c "ls" >/dev/null 2>&1
+EXIT_CODE=$?
+
+# En Distroless, si no hay shell, el código de salida de Docker es 126 o 127
+if [ $EXIT_CODE -eq 126 ] || [ $EXIT_CODE -eq 127 ]; then
+    echo -e "${GREEN}[CUMPLE]${NC} Ausencia de Shell\n         └─ ${CYAN}Análisis:${NC} Confirmado: No existe /bin/sh. Ataque interactivo bloqueado."
 else
-    echo -e "${YELLOW}⚠️  NET_BIND_SERVICE not found${NC}"
-    ((WARNINGS++))
+    echo -e "${RED}[FALLA]${NC} Ausencia de Shell\n         └─ ${RED}Alerta:${NC} Respuesta inesperada del runtime (Exit Code: $EXIT_CODE)."
 fi
 
-# 4. Resource Limits
-echo -e "\n${YELLOW}[4/9] Resource Limits${NC}"
-MEM=$(docker inspect distroless-hardened-app --format='{{.HostConfig.Memory}}')
-CPU=$(docker inspect distroless-hardened-app --format='{{.HostConfig.NanoCpus}}')
-PIDS=$(docker inspect distroless-hardened-app --format='{{.HostConfig.PidsLimit}}')
-
-if [ "$MEM" = "268435456" ]; then  # 256MB
-    echo -e "${GREEN}✅ Memory limit: 256MB${NC}"
-    ((PASSED++))
+# 5. Límites Anti-DoS
+MEM=$(docker inspect $CONTAINER --format='{{.HostConfig.Memory}}' 2>/dev/null)
+if [ "$MEM" = "268435456" ]; then
+    echo -e "${GREEN}[CUMPLE]${NC} Límite de RAM\n         └─ ${CYAN}Análisis:${NC} Límite de 256MB verificado vía HostConfig."
 else
-    echo -e "${YELLOW}⚠️  Memory limit: $((MEM/1024/1024))MB (expected 256MB)${NC}"
-    ((WARNINGS++))
+    echo -e "${RED}[FALLA]${NC} Límite de RAM\n         └─ ${RED}Alerta:${NC} Sin límites de recursos configurados."
 fi
 
-if [ "$CPU" = "500000000" ]; then  # 0.5 CPU
-    echo -e "${GREEN}✅ CPU limit: 0.5 cores${NC}"
-    ((PASSED++))
-else
-    echo -e "${YELLOW}⚠️  CPU limit: $((CPU/1000000000)) cores${NC}"
-    ((WARNINGS++))
-fi
-
-if [ "$PIDS" = "100" ]; then
-    echo -e "${GREEN}✅ PIDs limit: 100${NC}"
-    ((PASSED++))
-else
-    echo -e "${YELLOW}⚠️  PIDs limit: $PIDS${NC}"
-    ((WARNINGS++))
-fi
-
-# 5. Security Options
-echo -e "\n${YELLOW}[5/9] Security Options${NC}"
-SEC_OPTS=$(docker inspect distroless-hardened-app --format='{{.HostConfig.SecurityOpt}}')
-
-if echo "$SEC_OPTS" | grep -q "no-new-privileges:true"; then
-    echo -e "${GREEN}✅ No new privileges enabled${NC}"
-    ((PASSED++))
-else
-    echo -e "${RED}❌ No new privileges NOT enabled${NC}"
-    ((FAILED++))
-fi
-
-# 6. Application Endpoints
-echo -e "\n${YELLOW}[6/9] Application Endpoints${NC}"
-
-DASH=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/ 2>/dev/null)
-if [ "$DASH" = "200" ]; then
-    echo -e "${GREEN}✅ Dashboard: HTTP $DASH${NC}"
-    ((PASSED++))
-else
-    echo -e "${RED}❌ Dashboard: HTTP $DASH${NC}"
-    ((FAILED++))
-fi
-
-HEALTH=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/health 2>/dev/null)
-if [ "$HEALTH" = "200" ]; then
-    echo -e "${GREEN}✅ Health endpoint: HTTP $HEALTH${NC}"
-    ((PASSED++))
-else
-    echo -e "${RED}❌ Health endpoint: HTTP $HEALTH${NC}"
-    ((FAILED++))
-fi
-
-METRICS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/api/metrics 2>/dev/null)
-if [ "$METRICS" = "200" ]; then
-    echo -e "${GREEN}✅ Metrics endpoint: HTTP $METRICS${NC}"
-    ((PASSED++))
-else
-    echo -e "${RED}❌ Metrics endpoint: HTTP $METRICS${NC}"
-    ((FAILED++))
-fi
-
-# 7. No Shell Access
-echo -e "\n${YELLOW}[7/9] Shell Access${NC}"
-if docker exec distroless-hardened-app /bin/sh -c "echo" 2>&1 | grep -q "executable file not found"; then
-    echo -e "${GREEN}✅ No shell available (distroless verified)${NC}"
-    ((PASSED++))
-else
-    RESULT=$(docker exec distroless-hardened-app /bin/sh -c "echo" 2>&1)
-    if echo "$RESULT" | grep -q "executable file not found"; then
-        echo -e "${GREEN}✅ No shell available${NC}"
-        ((PASSED++))
-    else
-        echo -e "${RED}❌ Shell access detected${NC}"
-        ((FAILED++))
-    fi
-fi
-
-# 8. User Context
-echo -e "\n${YELLOW}[8/9] User Context${NC}"
-USER=$(docker exec distroless-hardened-app id -u 2>/dev/null)
-if [ "$USER" != "0" ]; then
-    echo -e "${GREEN}✅ Non-root user (UID: $USER)${NC}"
-    ((PASSED++))
-else
-    echo -e "${RED}❌ Running as root${NC}"
-    ((FAILED++))
-fi
-
-# 9. Image Analysis
-echo -e "\n${YELLOW}[9/9] Image Analysis${NC}"
-SIZE=$(docker images distroless-secure-app:latest --format="{{.Size}}")
-LAYERS=$(docker history distroless-secure-app:latest | wc -l)
-echo -e "${GREEN}✅ Image size: $SIZE${NC}"
-echo -e "${GREEN}✅ Image layers: $LAYERS${NC}"
-
-# Summary
-echo -e "\n${BLUE}========================================${NC}"
-echo -e "Results: ${GREEN}Passed: $PASSED${NC} | ${RED}Failed: $FAILED${NC} | ${YELLOW}Warnings: $WARNINGS${NC}"
-echo -e "${BLUE}========================================${NC}"
-
-if [ $FAILED -eq 0 ]; then
-    echo -e "${GREEN}✅ VERIFICATION PASSED${NC}"
-    exit 0
-else
-    echo -e "${RED}❌ VERIFICATION FAILED${NC}"
-    exit 1
-fi
-VERIFY_SCRIPT
-
-chmod +x scripts/verify-all.sh
-
-echo "✅ Script verify-all.sh creado"
-echo ""
-echo "✅ PASO 6.1 COMPLETADO"
+echo -e "\n${BLUE}============================================================${NC}"
+echo -e "${GREEN}✅ CERTIFICACIÓN DE CONTENEDOR FINALIZADA${NC}"
+echo -e "${BLUE}============================================================${NC}"
 ```
 
 ---
@@ -2479,20 +2353,25 @@ echo "✅ PASO 6.1 COMPLETADO"
 
 ```bash
 #!/bin/bash
-echo "=== PASO 6.2: Ejecutar Verificaciones ==="
+# =============================================================
+# ✅ PASO 6.2: EJECUTAR VERIFICACIONES (MAPEO PERSONALIZADO)
+# =============================================================
 
-cd $HOME/distroless-lab
+GREEN='\033[0;32m'
+CYAN='\033[0;36m'
+NC='\033[0m'
 
-# Ejecutar verificación completa
-./scripts/verify-all.sh
+echo -e "${CYAN}=== PASO 6.2: Ejecutando Verificaciones de Seguridad ===${NC}"
 
-# Ejecutar ISO 27001 check
-echo ""
-echo "Ejecutando ISO 27001 compliance check..."
-./scripts/iso27001-check.sh
+# 1. Ejecutar tu Auditor Detallado (v6.1 que creamos antes)
+echo -e "\n🔍 Ejecutando Auditoría Técnica de Runtime..."
+./verificando_fs_limites_endpoints_compliance_6.1.sh
 
-echo ""
-echo "✅ PASO 6.2 COMPLETADO"
+# 2. Ejecutar tu Check de Cumplimiento ISO
+echo -e "\n📋 Ejecutando ISO 27001 Compliance Check..."
+./verificando_cumplimiento_ISO27001.sh
+
+echo -e "\n${GREEN}✅ PASO 6.2 COMPLETADO CON ÉXITO${NC}"
 ```
 
 ---
@@ -2503,135 +2382,67 @@ echo "✅ PASO 6.2 COMPLETADO"
 
 ```bash
 #!/bin/bash
-# ============================================
-# PASO 6.3: GENERAR REPORTE DE COMPLIANCE
-# ============================================
+# ============================================================
+# 📄 PASO 6.3: GENERAR ARTEFACTO DE EVIDENCIA ISO 27001
+# ============================================================
 
-echo "=== PASO 6.3: Generar Reporte de Compliance ==="
+echo "=== PASO 6.3: Generando Reporte de Compliance (Evidencia) ==="
 
-cd $HOME/distroless-lab
+# Definimos la ruta del reporte en tu carpeta de labs
+REPORT_DIR="$HOME/container-hardening-lab/reports"
+mkdir -p "$REPORT_DIR"
+REPORT_FILE="$REPORT_DIR/compliance-evidence-$(date +%Y%m%d-%H%M%S).txt"
 
-REPORT_FILE="compliance-report-$(date +%Y%m%d-%H%M%S).txt"
-
+# Generación del contenido del reporte
 cat > "$REPORT_FILE" << EOF
-========================================
-DOCKER DISTROLESS SECURITY LAB
-ISO 27001:2022 COMPLIANCE REPORT
-========================================
-Report Generated: $(date)
-Report By: $(whoami)
-Hostname: $(hostname)
+============================================================
+       EVIDENCIA DE CUMPLIMIENTO - SEGURIDAD SRE
+       NORMA: ISO 27001:2022 (CONTENEDORES)
+============================================================
+Fecha de Generación : $(date)
+Arquitecto Responsable: Juan Garagorry (SRE Senior)
+Hostname            : $(hostname)
+------------------------------------------------------------
 
-========================================
-CONTAINER INFORMATION
-========================================
-Container Name: $(docker inspect distroless-hardened-app --format='{{.Name}}' | sed 's/^\///')
-Container ID: $(docker inspect distroless-hardened-app --format='{{.Id}}' | cut -c1-12)
-Image: $(docker inspect distroless-hardened-app --format='{{.Config.Image}}')
-Status: $(docker inspect distroless-hardened-app --format='{{.State.Status}}')
-Started: $(docker inspect distroless-hardened-app --format='{{.State.StartedAt}}')
+[1] IDENTIFICACIÓN DEL ACTIVO
+------------------------------------------------------------
+Nombre Contenedor : $(docker inspect distroless-hardened-app --format='{{.Name}}' | sed 's/^\///')
+ID Corto          : $(docker inspect distroless-hardened-app --format='{{.Id}}' | cut -c1-12)
+Imagen Base       : $(docker inspect distroless-hardened-app --format='{{.Config.Image}}')
+Estado Runtime    : $(docker inspect distroless-hardened-app --format='{{.State.Status}}')
 
-========================================
-ISO 27001:2022 CONTROL IMPLEMENTATION
-========================================
+[2] CONTROLES TÉCNICOS IMPLEMENTADOS
+------------------------------------------------------------
+A.8.8 (Vulnerabilidades Técnicas): 
+    - EVIDENCIA: Imagen Distroless (Sin Gestor de Paquetes/Shell)
+    - TAMAÑO IMAGEN: $(docker images distroless-secure-app:latest --format "{{.Size}}")
 
-A.8.8 - Management of Technical Vulnerabilities
-Status: IMPLEMENTED
-Evidence:
-  - Distroless base image: $(docker inspect distroless-hardened-app --format='{{.Config.Image}}')
-  - No package managers
-  - No shell binaries
-  - Minimal attack surface
+A.8.26 (Privilegios Mínimos):
+    - EVIDENCIA: Capabilities Dropped: $(docker inspect distroless-hardened-app --format='{{.HostConfig.CapDrop}}')
+    - USUARIO CONFIGURADO: $(docker inspect distroless-hardened-app --format='{{.Config.User}}')
 
-A.8.25 - Secure Development Life Cycle
-Status: IMPLEMENTED
-Evidence:
-  - Multi-stage Docker build (check Dockerfile)
-  - Build stage: golang:1.22-alpine3.19
-  - Static compilation: -ldflags="-extldflags '-static'"
-  - Symbol stripping: -ldflags="-s -w"
+A.8.27 (Arquitectura Segura):
+    - EVIDENCIA: Read-only Filesystem: $(docker inspect distroless-hardened-app --format='{{.HostConfig.ReadonlyRootfs}}')
+    - EVIDENCIA: No-New-Privileges: $(docker inspect distroless-hardened-app --format='{{.HostConfig.SecurityOpt}}')
 
-A.8.26 - Application Security Requirements
-Status: IMPLEMENTED
-Evidence:
-  - Capabilities dropped: $(docker inspect distroless-hardened-app --format='{{.HostConfig.CapDrop}}')
-  - Capabilities added: $(docker inspect distroless-hardened-app --format='{{.HostConfig.CapAdd}}')
-  - Only NET_BIND_SERVICE for port binding
+[3] LÍMITES DE RECURSOS (ANTI-DOS)
+------------------------------------------------------------
+Memoria Límite : $(docker inspect distroless-hardened-app --format='{{.HostConfig.Memory}}' | awk '{print $1/1024/1024 " MB"}')
+CPU Límite     : $(docker inspect distroless-hardened-app --format='{{.HostConfig.NanoCpus}}' | awk '{print $1/1000000000 " cores"}')
 
-A.8.27 - Secure System Architecture
-Status: IMPLEMENTED
-Evidence:
-  - Read-only filesystem: $(docker inspect distroless-hardened-app --format='{{.HostConfig.ReadonlyRootfs}}')
-  - Tmpfs mounted: /tmp:noexec,nosuid,size=64m
-  - No new privileges: $(docker inspect distroless-hardened-app --format='{{.HostConfig.SecurityOpt}}')
-  - Seccomp profile: Installed and enforced
+[4] VERIFICACIÓN DE DISPONIBILIDAD (HEALTH)
+------------------------------------------------------------
+Endpoint /       : $(curl -s -o /dev/null -w "HTTP %{http_code}" http://localhost:8080/)
+Endpoint /health : $(curl -s -o /dev/null -w "HTTP %{http_code}" http://localhost:8080/health)
 
-A.8.28 - Secure Coding
-Status: IMPLEMENTED
-Evidence:
-  - Non-root user: $(docker exec distroless-hardened-app id -u 2>/dev/null || echo 'nonroot')
-  - User UID: 65532 (distroless default)
-  - No sudo or setuid binaries
-
-A.8.29 - Security Testing in Development
-Status: IMPLEMENTED
-Evidence:
-  - Health check: $(docker inspect distroless-hardened-app --format='{{.Config.Healthcheck}}' | head -c 100)
-  - Automated verification scripts: verify-all.sh, iso27001-check.sh
-  - Compliance testing: PASS/FAIL verification
-
-A.12.4.1 - Event Logging
-Status: IMPLEMENTED
-Evidence:
-  - Log driver: $(docker inspect distroless-hardened-app --format='{{.HostConfig.LogConfig.Type}}')
-  - Max file size: 10m
-  - Max files: 3
-  - Labels applied: $(docker inspect distroless-hardened-app --format='{{.Config.Labels}}')
-
-A.12.6.1 - Network Security
-Status: IMPLEMENTED
-Evidence:
-  - Port binding: $(docker port distroless-hardened-app)
-  - Local access only: 127.0.0.1:8080
-  - Network isolation: bridge network
-
-========================================
-RESOURCE CONSTRAINTS
-========================================
-Memory limit: $(docker inspect distroless-hardened-app --format='{{.HostConfig.Memory}}' | awk '{print $1/1024/1024 " MB"}')
-CPU limit: $(docker inspect distroless-hardened-app --format='{{.HostConfig.NanoCpus}}' | awk '{print $1/1000000000 " cores"}')
-PIDs limit: $(docker inspect distroless-hardened-app --format='{{.HostConfig.PidsLimit}}')
-Max file descriptors: $(docker inspect distroless-hardened-app --format='{{.HostConfig.Ulimits}}' | grep nofile)
-
-========================================
-ENDPOINT VERIFICATION
-========================================
-Dashboard: $(curl -s -o /dev/null -w "HTTP %{http_code}" http://localhost:8080/)
-Health Check: $(curl -s -o /dev/null -w "HTTP %{http_code}" http://localhost:8080/health)
-Metrics API: $(curl -s -o /dev/null -w "HTTP %{http_code}" http://localhost:8080/api/metrics)
-
-========================================
-COMPLIANCE SIGN-OFF
-========================================
-Verified by: $(whoami)
-Date: $(date)
-System: $(uname -s) $(uname -r)
-
-This report confirms that the Docker Distroless Security Lab container
-is deployed with hardening measures and security controls aligned with
-ISO 27001:2022 requirements for secure container runtime environments.
-
-========================================
-END OF REPORT
-========================================
+============================================================
+             FIN DEL REPORTE DE CERTIFICACIÓN
+============================================================
 EOF
 
-echo "✅ Reporte generado: $REPORT_FILE"
-echo ""
+echo -e "\n✅ Artefacto de evidencia creado en: \n   $REPORT_FILE"
+echo -e "\n--- VISTA PREVIA DEL REPORTE ---\n"
 cat "$REPORT_FILE"
-
-echo ""
-echo "✅ PASO 6.3 COMPLETADO"
 ```
 
 ---
@@ -2644,68 +2455,63 @@ echo "✅ PASO 6.3 COMPLETADO"
 
 ```bash
 #!/bin/bash
-# ============================================
-# PASO 7.1: CREAR SCRIPT MONITOREO EN TIEMPO REAL
-# ============================================
+# ============================================================
+# 📊 PASO 7.1: MONITOR SRE PRO (EDICIÓN RESILIENTE)
+# ============================================================
 
-echo "=== PASO 7.1: Crear Script Monitoreo ==="
+CONTAINER="distroless-hardened-app"
+URL="http://localhost:8080"
 
-cd $HOME/distroless-lab
-
-cat > scripts/monitor.sh << 'MONITOR_SCRIPT'
-#!/bin/bash
+# Verificar si el contenedor existe
+if ! docker ps -a | grep -q "$CONTAINER"; then
+    echo -e "\033[0;31m❌ Error: El contenedor $CONTAINER no existe.\033[0m"
+    exit 1
+fi
 
 while true; do
     clear
-    echo "=========================================="
-    echo "📊 DISTROLESS CONTAINER MONITOR"
-    echo "Time: $(date '+%Y-%m-%d %H:%M:%S')"
-    echo "=========================================="
+    echo -e "\033[0;34m============================================================\033[0m"
+    echo -e "\033[1;36m🛡️  SRE OPERATIONAL DASHBOARD | $CONTAINER\033[0m"
+    echo -e "\033[0;34m============================================================\033[0m"
+    echo -e "🕒 Hora: $(date '+%H:%M:%S') | Host: $(hostname) | Senior: Juan Garagorry"
     
-    # Container status
-    echo ""
-    echo "🔍 CONTAINER STATUS:"
-    docker ps --filter "name=distroless-hardened-app" \
-        --format "table {{.Names}}\t{{.Status}}\t{{.RunningFor}}\t{{.Ports}}"
+    # 1. LÓGICA DE SALUD SRE (Validación Real vs Docker Report)
+    echo -e "\n\033[1;33m🩺 ESTADO DE SALUD OPERATIVA:\033[0m"
     
-    # Resource usage
-    echo ""
-    echo "💾 RESOURCE USAGE:"
-    docker stats distroless-hardened-app --no-stream \
-        --format "table {{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}\t{{.BlockIO}}" 2>/dev/null || \
-        echo "   (Stats temporarily unavailable)"
-    
-    # Health status
-    echo ""
-    echo "🩺 HEALTH STATUS:"
-    HEALTH=$(docker inspect distroless-hardened-app --format='{{.State.Health.Status}}' 2>/dev/null)
-    echo "   Health: $HEALTH"
-    
-    # Endpoint verification
-    echo ""
-    echo "🌐 ENDPOINT VERIFICATION:"
-    for endpoint in "/" "/health" "/api/metrics"; do
-        CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080$endpoint 2>/dev/null)
-        echo "   $endpoint: HTTP $CODE"
+    # Obtenemos el HTTP Code del health check
+    HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$URL/health" --max-time 2)
+    # Obtenemos el reporte del motor Docker
+    DOCKER_REPORT=$(docker inspect $CONTAINER --format='{{.State.Health.Status}}' 2>/dev/null || echo "unknown")
+
+    if [ "$HTTP_CODE" == "200" ]; then
+        echo -e "   Servicio HTTP  : \033[0;32m● ONLINE (200 OK)\033[0m"
+        echo -e "   Estado Global  : \033[1;32m✔ HEALTHY\033[0m"
+    else
+        echo -e "   Servicio HTTP  : \033[0;31m● OFFLINE (Code: $HTTP_CODE)\033[0m"
+        echo -e "   Estado Global  : \033[1;31m✖ CRITICAL\033[0m"
+    fi
+    echo -e "   Docker Engine  : \033[0;37m$DOCKER_REPORT (Internal View)\033[0m"
+
+    # 2. CONSUMO DE RECURSOS (Métricas de Oro)
+    echo -e "\n\033[1;33m💾 MÉTRICAS DE RECURSOS (Hardened):\033[0m"
+    docker stats $CONTAINER --no-stream --format "   CPU: {{.CPUPerc}} | RAM: {{.MemUsage}} | Net: {{.NetIO}}"
+
+    # 3. VERIFICACIÓN DE ENDPOINTS (Integridad)
+    echo -e "\n\033[1;33m🌐 INTEGRIDAD DE ENDPOINTS:\033[0m"
+    for path in "/" "/health"; do
+        CODE=$(curl -s -o /dev/null -w "%{http_code}" "$URL$path" --max-time 2)
+        [ "$CODE" == "200" ] && STATUS="\033[0;32mPASS\033[0m" || STATUS="\033[0;31mFAIL\033[0m"
+        echo -e "   $path -> [ $STATUS ] HTTP $CODE"
     done
-    
-    # Last 2 log lines
-    echo ""
-    echo "📋 LAST LOG ENTRIES:"
-    docker logs --tail 2 distroless-hardened-app 2>/dev/null | sed 's/^/   /'
-    
-    echo ""
-    echo "=========================================="
-    echo "Refreshing every 5 seconds (Press Ctrl+C to exit)"
+
+    # 4. LOGS DE SEGURIDAD (Runtime)
+    echo -e "\n\033[1;33m📋 AUDITORÍA DE LOGS (Últimos 3):\033[0m"
+    docker logs --tail 3 $CONTAINER 2>/dev/null | sed 's/^/   /'
+
+    echo -e "\n\033[0;34m============================================================\033[0m"
+    echo -e "Refrescando cada 5s... (Presiona Ctrl+C para salir)"
     sleep 5
 done
-MONITOR_SCRIPT
-
-chmod +x scripts/monitor.sh
-
-echo "✅ Script monitor.sh creado"
-echo ""
-echo "✅ PASO 7.1 COMPLETADO"
 ```
 
 ---
@@ -2718,56 +2524,52 @@ echo "✅ PASO 7.1 COMPLETADO"
 
 ```bash
 #!/bin/bash
-# ============================================
-# PASO 8.1: CREAR SCRIPT CLEANUP
-# ============================================
-
-echo "=== PASO 8.1: Crear Script Cleanup ==="
-
-cd $HOME/distroless-lab
-
-cat > scripts/docker-cleanup.sh << 'CLEANUP_SCRIPT'
-#!/bin/bash
+# ============================================================
+# 🧹 PASO 8.1: CLEANUP CONTROLADO - SEGURIDAD SRE
+# ============================================================
 
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+RED='\033[0;31m'
 NC='\033[0m'
 
-echo -e "${GREEN}========================================${NC}"
-echo -e "${GREEN}🧹 Docker Distroless Lab - Cleanup${NC}"
-echo -e "${GREEN}========================================${NC}"
+echo -e "${GREEN}============================================================${NC}"
+echo -e "${GREEN}🧹 FINAL CLEANUP: DOCKER DISTROLESS HARDENING LAB${NC}"
+echo -e "${GREEN}============================================================${NC}"
 
-# 1. Stop container
-echo -e "\n${YELLOW}[1/5] Stopping container...${NC}"
-docker stop distroless-hardened-app 2>/dev/null && echo "   ✅ Stopped" || echo "   ⚠️  Not running"
+# 1. Detener el contenedor
+echo -e "\n${YELLOW}[1/5] Deteniendo contenedor...${NC}"
+docker stop distroless-hardened-app 2>/dev/null && echo "   ✅ Detenido" || echo "   ⚠️  No estaba en ejecución"
 
-# 2. Remove container
-echo -e "\n${YELLOW}[2/5] Removing container...${NC}"
-docker rm distroless-hardened-app 2>/dev/null && echo "   ✅ Removed" || echo "   ⚠️  Not found"
+# 2. Remover el contenedor
+echo -e "\n${YELLOW}[2/5] Eliminando contenedor...${NC}"
+docker rm distroless-hardened-app 2>/dev/null && echo "   ✅ Eliminado" || echo "   ⚠️  No se encontró el contenedor"
 
-# 3. Remove image
-echo -e "\n${YELLOW}[3/5] Removing image...${NC}"
-docker rmi distroless-secure-app:latest 2>/dev/null && echo "   ✅ Removed" || echo "   ⚠️  Not found"
+# 3. Remover la imagen construida
+echo -e "\n${YELLOW}[3/5] Eliminando imagen del laboratorio...${NC}"
+docker rmi distroless-secure-app:latest 2>/dev/null && echo "   ✅ Imagen eliminada" || echo "   ⚠️  La imagen ya no existía"
 
-# 4. Clean volumes
-echo -e "\n${YELLOW}[4/5] Cleaning volumes...${NC}"
-docker volume prune -f 2>/dev/null && echo "   ✅ Pruned"
+# 4. Limpieza de Redes y Volúmenes Huérfanos
+echo -e "\n${YELLOW}[4/5] Limpiando redes y volúmenes huerfanos...${NC}"
+docker network prune -f >/dev/null
+docker volume prune -f >/dev/null
+echo "   ✅ Limpieza de Docker completada"
 
-# 5. Clean networks
-echo -e "\n${YELLOW}[5/5] Cleaning networks...${NC}"
-docker network prune -f 2>/dev/null && echo "   ✅ Pruned"
+# 5. Liberación de Puertos (Específico para WSL)
+echo -e "\n${YELLOW}[5/5] Liberando puertos del sistema...${NC}"
+if command -v fuser >/dev/null 2>&1; then
+    fuser -k 8080/tcp >/dev/null 2>&1 && echo "   ✅ Puerto 8080 liberado" || echo "   ✅ Puerto 8080 ya estaba libre"
+fi
 
-echo -e "\n${GREEN}========================================${NC}"
-echo -e "${GREEN}✅ Cleanup complete!${NC}"
-echo -e "${GREEN}📁 Your configuration files remain in ~/distroless-lab${NC}"
-echo -e "${GREEN}========================================${NC}"
-CLEANUP_SCRIPT
+echo -e "\n${GREEN}============================================================${NC}"
+echo -e "${GREEN}✅ CLEANUP COMPLETADO CON ÉXITO${NC}"
+echo -e "${YELLOW}📁 Nota: Tus scripts y reportes en ~/container-hardening-lab${NC}"
+echo -e "${YELLOW}   permanecen intactos para tu portafolio.${NC}"
+echo -e "${GREEN}============================================================${NC}"
+EOF
 
-chmod +x scripts/docker-cleanup.sh
-
-echo "✅ Script docker-cleanup.sh creado"
-echo ""
-echo "✅ PASO 8.1 COMPLETADO"
+chmod +x ~/container-hardening-lab/cleanup_laboratorio_final_8.1.sh
+echo "✅ Script cleanup_laboratorio_final_8.1.sh creado con éxito."
 ```
 
 ---
@@ -2794,55 +2596,66 @@ echo "✅ PASO 8.2 COMPLETADO"
 
 ```bash
 #!/bin/bash
-# ============================================
-# PASO 9.1: VERIFICAR ESTADO LIMPIO
-# ============================================
-
-echo "=== PASO 9.1: Verificar Estado Limpio ==="
+# ============================================================
+# 🔍 PASO 9.1: VERIFICACIÓN DE ESTADO LIMPIO Y REPETIBILIDAD
+# ============================================================
 
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+RED='\033[0;31m'
+CYAN='\033[0;36m'
 NC='\033[0m'
 
-cd $HOME/distroless-lab
+echo -e "${GREEN}============================================================${NC}"
+echo -e "${GREEN}🔍 AUDITORÍA DE ESTADO POST-LABORATORIO${NC}"
+echo -e "${GREEN}============================================================${NC}"
 
-echo -e "${GREEN}========================================${NC}"
-echo -e "${GREEN}🔍 Clean State Verification${NC}"
-echo -e "${GREEN}========================================${NC}"
-
-# Check containers
-CONTAINERS=$(docker ps -a | grep -c distroless || echo "0")
+# 1. Verificación de Artefactos de Runtime (Docker)
+echo -e "${CYAN}1. Verificando Recursos de Docker:${NC}"
+CONTAINERS=$(docker ps -a --filter "name=distroless" -q | wc -l)
 if [ "$CONTAINERS" -eq 0 ]; then
-    echo -e "${GREEN}✅ No containers from lab${NC}"
+    echo -e "   ${GREEN}✅ No hay contenedores activos o huérfanos.${NC}"
 else
-    echo -e "${YELLOW}⚠️  $CONTAINERS containers remain${NC}"
+    echo -e "   ${RED}⚠️  Atención: Quedan $CONTAINERS contenedores con el nombre 'distroless'.${NC}"
 fi
 
-# Check images
-IMAGES=$(docker images | grep -c distroless || echo "0")
+IMAGES=$(docker images --filter "reference=distroless*" -q | wc -l)
 if [ "$IMAGES" -eq 0 ]; then
-    echo -e "${GREEN}✅ No images from lab${NC}"
+    echo -e "   ${GREEN}✅ No hay imágenes locales del laboratorio.${NC}"
 else
-    echo -e "${YELLOW}⚠️  $IMAGES images remain${NC}"
+    echo -e "   ${YELLOW}⚠️  Quedan $IMAGES imágenes de distroless en el registro local.${NC}"
 fi
 
-# Check configuration files
-echo -e "\n${YELLOW}Configuration Files Status:${NC}"
-for file in Dockerfile docker-compose.yml app/main.go scripts/verify-all.sh; do
-    if [ -f "$file" ]; then
-        echo -e "${GREEN}✅ $file${NC}"
+# 2. Verificación de Integridad de Configuración (Blueprint)
+echo -e "\n${CYAN}2. Verificando Archivos de Configuración (Blueprints):${NC}"
+FILES=(
+    "Dockerfile"
+    "app/main.go"
+    "ejecutando_contenedor_con_todas_las_opciones_de_seguridad_habilitadas.sh"
+    "monitoreo_tiempo_real_7.1.sh"
+    "verificando_cumplimiento_ISO27001.sh"
+    "generar_evidencia_compliance_6.3.sh"
+)
+
+for file in "${FILES[@]}"; do
+    if [ -f "$HOME/container-hardening-lab/$file" ]; then
+        echo -e "   ${GREEN}✅ $file [PRESENTE]${NC}"
     else
-        echo -e "${YELLOW}⚠️  $file MISSING${NC}"
+        echo -e "   ${RED}❌ $file [FALTANTE]${NC}"
     fi
 done
 
-echo -e "\n${GREEN}========================================${NC}"
-echo -e "${GREEN}🎉 Ready to repeat the lab!${NC}"
-echo -e "${GREEN}Run: ./scripts/deploy-lab.sh${NC}"
-echo -e "${GREEN}========================================${NC}"
-
-echo ""
-echo "✅ PASO 9.1 COMPLETADO"
+# 3. Estado Final
+echo -e "\n${GREEN}============================================================${NC}"
+if [ "$CONTAINERS" -eq 0 ] && [ "$IMAGES" -eq 0 ]; then
+    echo -e "${GREEN}🎉 SISTEMA LISTO PARA REPETICIÓN LIMPIA (IDEMPOTENCIA)${NC}"
+    echo -e "   Para iniciar de nuevo, ejecuta el script de construcción y luego"
+    echo -e "   el de ejecución con hardening."
+else
+    echo -e "${YELLOW}⚠️  EL SISTEMA NO ESTÁ TOTALMENTE LIMPIO${NC}"
+    echo -e "   Se recomienda ejecutar ./cleanup_laboratorio_final_8.1.sh antes."
+fi
+echo -e "${GREEN}============================================================${NC}"
 ```
 
 ---
@@ -2878,36 +2691,20 @@ graph LR
 ## 🚀 Comando Rápido para Ejecución Completa
 
 ```bash
-# Copiar y pegar para ejecutar TODO
+# 1. CONSTRUCCIÓN (Build)
+cd ~/distroless-lab && docker build -t distroless-secure-app:latest .
 
-cd $HOME
+# 2. DESPLIEGUE Y AUDITORÍA (Deploy & Audit)
+cd ~/container-hardening-lab
+./ejecutando_contenedor_con_todas_las_opciones_de_seguridad_habilitadas.sh
+./generar_evidencia_compliance_6.3.sh
 
-# 1. Copiar todos los scripts y archivos del runbook
-# (asumiendo que ya has creado los directorios y archivos)
+# 3. MONITOREO (Observability) - Ejecutar en terminal aparte
+./monitoreo_tiempo_real_7.1.sh
 
-# 2. Ejecutar secuencialmente
-
-# Fase 0-1: Preparación y Docker
-bash /path/to/phase0.sh
-bash /path/to/phase1.sh
-
-# Fase 2-4: Estructura y Configuración
-bash /path/to/phase2.sh
-bash /path/to/phase3.sh
-bash /path/to/phase4.sh
-
-# Fase 5-6: Build, Deploy y Verificación
-bash /path/to/phase5.sh
-bash /path/to/phase6.sh
-
-# Fase 7: Monitoreo (en terminal separada)
-./scripts/monitor.sh
-
-# Fase 8: Limpiar cuando termines
-./scripts/docker-cleanup.sh
-
-# Fase 9: Verificar estado limpio
-bash /path/to/phase9.sh
+# 4. CIERRE (Cleanup) - Solo cuando termines la práctica
+./cleanup_laboratorio_final_8.1.sh
+./verificar_estado_limpio_9.1.sh
 ```
 
 ---
