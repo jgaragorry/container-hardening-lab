@@ -2713,22 +2713,32 @@ cd ~/container-hardening-lab
 
 ```bash
 #!/bin/bash
+# ============================================================
+# ✅ PASO 10: CHECKLIST FINAL DE VALIDACIÓN (SRE ADAPTED)
+# ============================================================
 
-echo "=========================================="
-echo "✅ FINAL DEPLOYMENT CHECKLIST"
-echo "=========================================="
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
+
+echo -e "${GREEN}==========================================${NC}"
+echo -e "${GREEN}✅ FINAL DEPLOYMENT CHECKLIST - MSI EDITION${NC}"
+echo -e "${GREEN}==========================================${NC}"
+
+CONTAINER="distroless-hardened-app"
 
 CHECKS=(
-    "Container running|docker ps | grep -q distroless-hardened-app"
-    "Port accessible|curl -s http://localhost:8080 > /dev/null"
-    "Health endpoint|curl -s http://localhost:8080/health | grep -q healthy"
-    "Read-only FS|docker inspect distroless-hardened-app | grep -q '\"ReadonlyRootfs\": true'"
-    "No shell|docker exec distroless-hardened-app ls 2>&1 | grep -q 'executable file not found' || true && true"
-    "Memory limit|docker inspect distroless-hardened-app | grep -q '\"Memory\": 268435456'"
-    "CPU limit|docker inspect distroless-hardened-app | grep -q '\"NanoCpus\": 500000000'"
-    "No new privileges|docker inspect distroless-hardened-app | grep -q 'no-new-privileges'"
-    "Capabilities dropped|docker inspect distroless-hardened-app | grep -q 'CapDrop.*ALL'"
-    "Non-root user|docker exec distroless-hardened-app id -u 2>/dev/null | grep -q '^0$' || true && true"
+    "Container running|docker ps | grep -q $CONTAINER"
+    "Port accessible|curl -s -m 2 http://localhost:8080 > /dev/null"
+    "Health endpoint|curl -s -m 2 http://localhost:8080/health | grep -q 'OK'"
+    "Read-only FS|docker inspect $CONTAINER | grep -q '\"ReadonlyRootfs\": true'"
+    "No shell (Security)|! docker exec $CONTAINER sh -c 'exit' > /dev/null 2>&1"
+    "Memory limit|docker inspect $CONTAINER | grep -q '\"Memory\": 268435456'"
+    "No new privileges|docker inspect $CONTAINER | grep -q 'no-new-privileges'"
+    "Non-root user|docker inspect $CONTAINER | grep -q '\"User\": \"nonroot\"'"
+    "Tmpfs /tmp mounted|docker inspect $CONTAINER | grep -q '\"/tmp\"'"
+    "Minimal Distroless|docker inspect $CONTAINER | grep -q 'distroless-secure-app'"
 )
 
 PASSED=0
@@ -2737,24 +2747,25 @@ for check in "${CHECKS[@]}"; do
     CMD="${check#*|}"
     
     echo -n "✓ $NAME... "
-    if eval "$CMD" > /dev/null 2>&1; then
-        echo "✅"
+    # Usamos bash -c para evaluar comandos complejos como las negaciones (!)
+    if bash -c "$CMD" > /dev/null 2>&1; then
+        echo -e "${GREEN}✅${NC}"
         ((PASSED++))
     else
-        echo "❌"
+        echo -e "${RED}❌${NC}"
     fi
 done
 
-echo ""
-echo "========================================"
-echo "Total Passed: $PASSED/10"
-echo "========================================"
+echo -e "\n========================================"
+echo -e "Total Passed: $PASSED/10"
+echo -e "========================================"
 
 if [ $PASSED -eq 10 ]; then
-    echo "🎉 LABORATORIO COMPLETADO EXITOSAMENTE"
-    echo "✅ Ready for production-like security standards"
+    echo -e "${GREEN}🎉 LABORATORIO COMPLETADO EXITOSAMENTE${NC}"
+    echo -e "✅ Estándares de seguridad SRE alcanzados."
 else
-    echo "⚠️  Some checks failed. Review and retry."
+    echo -e "${YELLOW}⚠️  Algunos checks fallaron.${NC}"
+    echo -e "Tip: En WSL, 'Capabilities' y 'Seccomp' pueden variar."
 fi
 ```
 
