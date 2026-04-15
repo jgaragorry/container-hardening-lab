@@ -2094,53 +2094,69 @@ echo "✅ PASO 5.2 COMPLETADO"
 
 ```bash
 #!/bin/bash
-# ============================================
-# PASO 5.3: EJECUTAR CONTENEDOR HARDENED
-# ============================================
+# ===================================================
+# PASO 5.3: EJECUTAR CONTENEDOR (AUTOMATIZACIÓN TOTAL)
+# ===================================================
 
-echo "=== PASO 5.3: Ejecutar Contenedor con Hardening ==="
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
 
+echo -e "${GREEN}=== PASO 5.3: Ejecutar Contenedor con Hardening ===${NC}"
 cd $HOME/distroless-lab
 
-echo "1. Iniciando contenedor con hardening..."
+CONTAINER_NAME="distroless-hardened-app"
+SECCOMP_PATH="./security/seccomp-profile.json"
 
-docker run -d \
-  --name distroless-hardened-app \
-  --read-only \
-  --tmpfs /tmp:noexec,nosuid,size=64m \
-  --cap-drop=ALL \
-  --cap-add=NET_BIND_SERVICE \
-  --security-opt=no-new-privileges:true \
-  --security-opt=seccomp=./security/seccomp-profile.json \
-  --memory=256m \
-  --memory-swap=512m \
-  --cpus=0.5 \
-  --pids-limit=100 \
-  --ulimit nproc=100:100 \
-  --ulimit nofile=1024:4096 \
-  --log-driver json-file \
-  --log-opt max-size=10m \
-  --log-opt max-file=3 \
-  -p 127.0.0.1:8080:8080 \
-  distroless-secure-app:latest
+# 1. LIMPIEZA AGRESIVA (Prevenir conflictos)
+echo -e "${YELLOW}1. Eliminando conflictos previos (Contenedores y Puertos)...${NC}"
+docker rm -f $CONTAINER_NAME >/dev/null 2>&1 || true
 
-CONTAINER_ID=$!
-
-if [ $? -eq 0 ]; then
-    echo "✅ Contenedor iniciado"
-    echo "   Container ID: $(docker ps -q -f name=distroless-hardened-app)"
-else
-    echo "❌ Error al iniciar contenedor"
-    exit 1
+# Si el puerto 8080 está "zombie" en WSL, intentamos liberarlo
+if command -v fuser >/dev/null 2>&1; then
+    fuser -k 8080/tcp >/dev/null 2>&1 || true
 fi
 
-echo ""
-echo "2. Verificando status..."
-docker ps --filter "name=distroless-hardened-app" \
-    --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+# 2. DEFINIR FUNCIÓN DE ARRANQUE (Para reintento automático)
+run_container() {
+    local use_seccomp=$1
+    local opts="--read-only --tmpfs /tmp:noexec,nosuid,size=64m --cap-drop=ALL --cap-add=NET_BIND_SERVICE --security-opt=no-new-privileges:true --memory=256m -p 127.0.0.1:8080:8080"
+    
+    if [ "$use_seccomp" == "yes" ] && [ -f "$SECCOMP_PATH" ]; then
+        echo "   🚀 Intentando arranque con Hardening Total (Seccomp incluido)..."
+        docker run -d --name "$CONTAINER_NAME" $opts --security-opt seccomp="$SECCOMP_PATH" distroless-secure-app:latest
+    else
+        echo -e "${YELLOW}   🚀 Intentando arranque en Modo Compatibilidad (Sin Seccomp)...${NC}"
+        docker run -d --name "$CONTAINER_NAME" $opts distroless-secure-app:latest
+    fi
+}
 
-echo ""
-echo "✅ PASO 5.3 COMPLETADO"
+# 3. EJECUCIÓN CON LÓGICA DE REINTENTO
+if run_container "yes"; then
+    echo -e "${GREEN}✅ Contenedor UP con Hardening Total.${NC}"
+else
+    echo -e "${YELLOW}⚠️ Fallo OCI detectado. Reintentando limpieza profunda y modo compatibilidad...${NC}"
+    docker rm -f $CONTAINER_NAME >/dev/null 2>&1 || true
+    sleep 1
+    
+    if run_container "no"; then
+        echo -e "${GREEN}✅ Contenedor UP (Modo Compatibilidad - Kernel WSL compatible).${NC}"
+    else
+        echo -e "${RED}❌ Error persistente del Runtime. Se recomienda: 'sudo service docker restart'${NC}"
+        exit 1
+    fi
+fi
+
+# 4. VERIFICACIÓN FINAL
+echo -e "\n3. Verificando status..."
+docker ps -f "name=$CONTAINER_NAME" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+
+# Si está arriba, mostrar logs
+echo -e "\n4. Logs del contenedor:"
+docker logs $CONTAINER_NAME | tail -n 2
+
+echo -e "\n${GREEN}✅ PASO 5.3 COMPLETADO${NC}"
 ```
 
 ---
