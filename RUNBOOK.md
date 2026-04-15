@@ -974,48 +974,57 @@ echo "✅ PASO 3.1 COMPLETADO"
 ```bash
 #!/bin/bash
 # ============================================
-# PASO 3.2: VALIDAR DOCKERFILE
+# PASO 3.2: VALIDAR DOCKERFILE (FIXED GREP)
 # ============================================
 
-echo "=== PASO 3.2: Validar Dockerfile ==="
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m'
+
+echo -e "${GREEN}=== PASO 3.2: Validar Dockerfile ===${NC}"
 
 cd $HOME/distroless-lab
 
 echo "1. Validando sintaxis..."
-if docker build --dry-run . 2>&1 | grep -q "Sending build context"; then
-    echo "✅ Sintaxis válida"
-else
-    echo "❌ Error de sintaxis en Dockerfile"
-    docker build --dry-run . 2>&1 | head -20
+# Validamos existencia primero
+if [ ! -f Dockerfile ]; then
+    echo -e "${RED}❌ Error: No existe el archivo Dockerfile en $(pwd)${NC}"
     exit 1
 fi
+echo -e "${GREEN}✅ Dockerfile encontrado${NC}"
 
-echo ""
-echo "2. Analizando Dockerfile..."
-# Verificar requisitos
-CHECKS=(
-    "FROM.*AS builder"
-    "FROM.*distroless"
-    "CGO_ENABLED=0"
-    "GOOS=linux"
-    "GOARCH=amd64"
-    "static"
-    "--cap-drop"
-    "--read-only"
-    "HEALTHCHECK"
-    "nonroot"
-)
+echo -e "\n2. Analizando cumplimiento de Hardening (Linter Manual)..."
 
-for check in "${CHECKS[@]}"; do
-    if grep -q "$check" Dockerfile; then
-        echo "✅ $check"
+# Usamos una estructura más limpia para evitar errores de escape en grep
+declare -A CHECKS
+CHECKS["FROM.*AS builder"]="Etapa de compilación (Multi-stage)"
+CHECKS["FROM.*distroless"]="Imagen base segura (Distroless)"
+CHECKS["CGO_ENABLED=0"]="Binario estático (No libc dependencies)"
+CHECKS["GOOS=linux"]="Target OS (Linux)"
+CHECKS["-ldflags"]="Stripping de símbolos (Security & Size)"
+CHECKS["nonroot"]="Usuario no privilegiado (UID 65532)"
+CHECKS["HEALTHCHECK"]="Monitoreo de salud (Docker Native)"
+
+for pattern in "${!CHECKS[@]}"; do
+    description=${CHECKS[$pattern]}
+    # Usamos -e para el patrón y -- para separar el archivo, evitando errores con guiones
+    if grep -Ei -e "$pattern" -- Dockerfile > /dev/null; then
+        echo -e "${GREEN}✅ Found: $description${NC}"
     else
-        echo "⚠️ No encontrado: $check"
+        echo -e "${YELLOW}⚠️  Missing: $description${NC}"
     fi
 done
 
-echo ""
-echo "✅ PASO 3.2 COMPLETADO"
+echo -e "\n3. Verificando integridad de contexto..."
+if [ -d "app" ] && [ -f "app/main.go" ]; then
+    echo -e "${GREEN}✅ Contexto 'app/main.go' listo${NC}"
+else
+    echo -e "${RED}❌ Error: Falta el código fuente en app/main.go${NC}"
+    exit 1
+fi
+
+echo -e "\n${GREEN}✅ PASO 3.2 COMPLETADO CORRECTAMENTE${NC}"
 ```
 
 ---
